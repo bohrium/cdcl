@@ -22,6 +22,7 @@ int rule_out(ClauseList* cl,
 int assert(ClauseList* cl, int v);
 int deny  (ClauseList* cl, int v);
 int wire  (ClauseList* cl, int va, int vb);
+int ifthen(ClauseList* cl, int va, int vb);
 
 int make_not(ClauseList* cl, int va);
 int make_and(ClauseList* cl, int va, int vb);

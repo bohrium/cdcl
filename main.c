@@ -3,43 +3,44 @@
 #include "stdlib.h"
 #include "string.h"
 
-//  #define nb_vars        5
-//  #define nb_clauses     9
-//  int cl.membership[nb_clauses][3];
-//  int cl.is_negated[nb_clauses][3];
-
 #include "clause-list.h"
 
-#include "instance-f.c"
+//#include "instance-b-new.c"
+#include "instance-dom.c"
+
+#define VERBOSE true
 
 ClauseList cl;
+#define GET_TERM(c,vi) (                    \
+        (  assignment[cl.membership[c][vi]] \
+         ^ cl.is_negated[c][vi]             \
+        )                                   \
+        &1)
 
 int* assignment;
 int* is_assigned;
 
-int* assign_stack; // rank to variable name
 #define TAE 0
 #define TSF 1
 int* assign_type;  // vi -> (TAE trial&error, TSF 2sat fill)
+
+int* assign_stack; // rank to variable name
 int nb_assigned = 0;
+
+// `steps` measures branch explorations
+long int steps = 0;
 
 //int issat[nb_clauses];
 
-void init_solve()
+void init_assign()
 {
-    //for (int c=0; c!=nb_clauses; ++c) {
-    //    issat[c]=0;
-    //}
-    //for (int v=0; v!=nb_vars; ++v) {
-    //    assign_stack[v]=0;
-    //}
     assignment  = malloc(sizeof(int) * cl.nb_vars);
     is_assigned = malloc(sizeof(int) * cl.nb_vars);
     assign_stack= malloc(sizeof(int) * cl.nb_vars);
     assign_type = malloc(sizeof(int) * cl.nb_vars);
     nb_assigned=0;
 }
-void free_solve()
+void free_assign()
 {
     free(assignment  );
     free(is_assigned );
@@ -51,13 +52,14 @@ void free_solve()
 void print_ass()
 {
     for (int v=0; v != cl.nb_vars; ++v) {
-        printf("%c = %s\n", 'a'+v, (assignment[v]?"true":"false"));
+        // print varname
+        printf("%c", 'a'+(v%26));
+        if (v/26) { printf("%d", 'a'+(v%26)); }
+
+        // print predicate
+        printf(" = %s\n", (assignment[v]?"true":"false"));
     }
 }
-
-long int badsteps = 0;
-
-#define GET_TERM(c,vi) ((assignment[cl.membership[c][vi]] ^ cl.is_negated[c][vi])&1)
 
 // fill while looking for contradictions induced or already present
 int fill_2sat()
@@ -104,7 +106,7 @@ int fill_2sat()
         }
 
         assignment[idx] = val;
-        printf(" ? --%d--%d--\n", idx, val);
+        if (VERBOSE) { printf(" ? --%d--%d--\n", idx, val); }
         assign_type[idx] = TSF;
         is_assigned[idx] = true;
         assign_stack[nb_assigned] = idx;
@@ -119,7 +121,7 @@ int solve_wrap();
 
 int solve_wrap()
 {
-    //TODO: assign forceds!
+    // assigns forceds!
     int nb_ass_before = nb_assigned;
     int rtrn = fill_2sat();
     rtrn = rtrn && solve(); // short circuit
@@ -142,9 +144,9 @@ int solve()
     }
 
     for (int val = 0; val != 2; ++val) {
-        printf("--%d--%d--\n", idx, val);
+        if (VERBOSE) { printf("--%d--%d--\n", idx, val); }
 
-        badsteps += 1; // `steps` measures bad steps
+        steps += 1;
 
         assignment[idx] = val;
         assign_type[idx] = TAE;
@@ -189,14 +191,15 @@ int main(char* const argv, int argc)
     printf("hi\n");
     init_cl(&cl);
     build(&cl);
-    init_solve();
+    init_assign();
+    printf("%d clauses on %d variables\n", cl.nb_clauses, cl.nb_vars);
 
     int ss = solve();
     printf("solved?  %s\n", (ss?"sat!":"unsat"));
-    printf("used %ld badsteps\n", badsteps);
+    printf("used %ld branch explorations\n", steps);
     print_ass();
 
-    free_solve();
+    free_assign();
     free_cl(&cl);
     printf("bye\n");
     return 0;

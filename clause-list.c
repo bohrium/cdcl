@@ -77,6 +77,10 @@ int wire  (ClauseList* cl, int va, int vb)
     rule_out(cl, va,1, vb,0, vb,0);
     rule_out(cl, va,0, vb,1, vb,1);
 }
+int ifthen(ClauseList* cl, int va, int vb)
+{
+    rule_out(cl, va,1, vb,0, vb,0);
+}
 
 int make_not(ClauseList* cl, int va)
 {
