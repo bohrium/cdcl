@@ -1,8 +1,10 @@
 #include "stdlib.h"
 #include "clause-list.h"
 
-void init_cl(ClauseList* cl, int cap)
+void init_cl(ClauseList* cl /*, int cap */ )
 {
+    int cap = 64;
+
     cl->nb_vars = 0;
     cl->nb_clauses = 0;
 
@@ -13,16 +15,21 @@ void init_cl(ClauseList* cl, int cap)
 
 void expand(ClauseList* cl, int new_cap)
 {
-    ClauseList old = cl;
+    ClauseList old;
+    old.membership = cl->membership;
+    old.is_negated = cl->membership;
+
     cl->membership = malloc(sizeof(int[3]) * new_cap);
     cl->is_negated = malloc(sizeof(int[3]) * new_cap);
     for (int c=0; c!=cl->nb_clauses; ++c) {
-        cl->membership[c] = old->membership[c];
-        cl->is_negated[c] = old->is_negated[c];
+        for (int vi=0; vi!=3; ++vi) {
+            cl->membership[c][vi] = old.membership[c][vi];
+            cl->is_negated[c][vi] = old.is_negated[c][vi];
+        }
     }
-    cl->cap = new_cap;
-    free(old->membership);
-    free(old->is_negated);
+    cl->clauses_cap = new_cap;
+    free(old.membership);
+    free(old.is_negated);
 }
 
 void free_cl(ClauseList* cl)
@@ -46,7 +53,7 @@ int rule_out(ClauseList* cl,
              int idxb, int valb,
              int idxc, int valc )
 {
-    if ( cl->nb_clauses == cl->clauses_cap ) { expand(cl, cl->cap*2 + 1); }
+    if ( cl->nb_clauses == cl->clauses_cap ) { expand(cl, cl->clauses_cap*2 + 1); }
 
     int nc = cl->nb_clauses;
     cl->is_negated[nc][0] = vala; cl->membership[nc][0] = idxa;
@@ -139,9 +146,9 @@ void ensure_add(ClauseList* cl, int len,
 
     if (car_in==-1) {
         // carry bit starts out false
-        c = add_var(cl);  deny(c);
+        c = add_var(cl);  deny(cl, c);
     } else {
-        c = car_in
+        c = car_in;
     }
 
     for (int b=0; b!=len; ++b)
@@ -152,11 +159,11 @@ void ensure_add(ClauseList* cl, int len,
 
         wire(cl, vs+b, s);
 
-        c = make_xor(cl, va+b
+        c = make_xor(cl, va+b,
             make_xor(cl, vb+b, c));
     }
 
     if (car_out!=-1) {
-        wire(cl, c, car);
+        wire(cl, c, car_out);
     }
 }

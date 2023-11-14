@@ -1,14 +1,16 @@
+#ifndef CLAUSE_LIST_H
+#define CLAUSE_LIST_H
+
 typedef struct {
-    int membership[/*clauses*/][3];
-    int is_negated[/*clauses*/][3];
+    int(* membership)/*[clauses]*/[3];
+    int(* is_negated)/*[clauses]*/[3];
     int nb_clauses;
     int clauses_cap;
-
     int nb_vars;
 } ClauseList;
 
 
-void init_cl(ClauseList* cl, int cap);
+void init_cl(ClauseList* cl);
 void expand(ClauseList* cl, int new_cap);
 void free_cl(ClauseList* cl);
 int add_var(ClauseList* cl);
@@ -35,3 +37,4 @@ int make_implies(ClauseList* cl, int va, int vb);
 void ensure_add(ClauseList* cl, int len,
                 int car_in, int va, int vb, int vs, int car_out);
 
+#endif//CLAUSE_LIST_H
