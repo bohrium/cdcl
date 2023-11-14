@@ -40,6 +40,7 @@ int add_var(ClauseList* cl)
     return cl->nb_vars-1;
 }
 
+
 int rule_out(ClauseList* cl,
              int idxa, int vala,
              int idxb, int valb,
@@ -52,6 +53,22 @@ int rule_out(ClauseList* cl,
     cl->is_negated[nc][1] = valb; cl->membership[nc][1] = idxb;
     cl->is_negated[nc][2] = valc; cl->membership[nc][2] = idxc;
     cl->nb_clauses += 1;
+}
+
+int assert(ClauseList* cl, int v)
+{
+    rule_out(cl, v,0, v,0, v,0);
+}
+
+int deny  (ClauseList* cl, int v)
+{
+    rule_out(cl, v,1, v,1, v,1);
+}
+
+int wire  (ClauseList* cl, int va, int vb)
+{
+    rule_out(cl, va,1, vb,0, vb,0);
+    rule_out(cl, va,0, vb,1, vb,1);
 }
 
 int make_not(ClauseList* cl, int va)
@@ -102,7 +119,44 @@ int make_eqv(ClauseList* cl, int va, int vb)
     return v;
 }
 
-int ensure_add(ClauseList* cl, int len, int va, int vb, vs)
+int make_implies(ClauseList* cl, int va, int vb)
 {
+    int v = add_var(cl);
+    rule_out(cl, v,0, va,0, vb,0);
+    rule_out(cl, v,0, va,0, vb,1);
+    rule_out(cl, v,1, va,1, vb,0);
+    rule_out(cl, v,0, va,1, vb,1);
+    return v;
+}
 
+
+// todo: log depth adder?
+/* if car_in==-1, then interpret as "no carry in bit" */
+void ensure_add(ClauseList* cl, int len,
+                int car_in, int va, int vb, int vs, int car_out)
+{
+    int c, s;
+
+    if (car_in==-1) {
+        // carry bit starts out false
+        c = add_var(cl);  deny(c);
+    } else {
+        c = car_in
+    }
+
+    for (int b=0; b!=len; ++b)
+    {
+        s = make_or(cl, make_and(cl, va+b, vb+b),
+            make_or(cl, make_and(cl, vb+b,  c  ),
+                        make_and(cl,  c  , va+b) )); // majority
+
+        wire(cl, vs+b, s);
+
+        c = make_xor(cl, va+b
+            make_xor(cl, vb+b, c));
+    }
+
+    if (car_out!=-1) {
+        wire(cl, c, car);
+    }
 }

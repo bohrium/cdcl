@@ -17,19 +17,21 @@ int rule_out(ClauseList* cl,
              int idxb, int valb,
              int idxc, int valc );
 
-int make_false(ClauseList* cl, int va);
-int make_true (ClauseList* cl, int va);
+int assert(ClauseList* cl, int v);
+int deny  (ClauseList* cl, int v);
+int wire  (ClauseList* cl, int va, int vb);
+
 int make_not(ClauseList* cl, int va);
 int make_and(ClauseList* cl, int va, int vb);
 int make_or (ClauseList* cl, int va, int vb);
 int make_xor(ClauseList* cl, int va, int vb);
 int make_eqv(ClauseList* cl, int va, int vb);
+int make_implies(ClauseList* cl, int va, int vb);
 
-void ensure_add(ClauseList* cl, int len, int va, int vb, int vs)
-{
-    int c;
-    for (int b=0; b!=len; ++b)
-    {
-        c = make_xor(cl ;
-    }
-}
+
+/* if car_in==-1 , then interpret as "no carry-in bit" */
+/* if car_out==-1, then interpret as "don't care if overflow" */
+/* numbers va, vb, vs assumed to occupy `len` many contiguous vars */
+void ensure_add(ClauseList* cl, int len,
+                int car_in, int va, int vb, int vs, int car_out);
+
