@@ -15,6 +15,8 @@ void init_cl(ClauseList* cl /*, int cap */ )
 
 void expand(ClauseList* cl, int new_cap)
 {
+    if (new_cap <= cl->clauses_cap) { return; }
+
     ClauseList old;
     old.membership = cl->membership;
     old.is_negated = cl->is_negated; // slayed double free bug here!

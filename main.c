@@ -28,15 +28,18 @@ typedef struct {
     int* assignment;    // varname to bool, defined when is_assigned
     int* assign_stack;  // search rootiness to varname
     int nb_assigned;
+    //
+    int C;
 } assign_t;
 
 // `steps` measures branch explorations
 long int steps = 0;
 
 
-void init_assign(assign_t* A, ClauseList* cl)
+void init_assign(assign_t* A, ClauseList const* cl)
 {
-    A->is_assigned = malloc(sizeof(int) * cl->nb_vars);
+    A->C = 1.1 * cl->nb_vars + 1;
+    A->is_assigned = malloc(sizeof(int) * A->C);
 
     for (int c=0; c!=cl->nb_vars; ++c) { // slayed correctness bug here!
       A->is_assigned[c]=0;              // (problem was I forgot to initialize.
@@ -48,18 +51,41 @@ void init_assign(assign_t* A, ClauseList* cl)
                                         // `assignment` ---must still be
                                         // valid even when nb_assigned=0;
 
-    A->assignment  = malloc(sizeof(int) * cl->nb_vars);
-    A->assign_stack= malloc(sizeof(int) * cl->nb_vars);
-    //assign_type = malloc(sizeof(int) * cl.nb_vars);
+    A->assignment  = malloc(sizeof(int) * A->C);
+    A->assign_stack= malloc(sizeof(int) * A->C);
     A->nb_assigned=0;
+}
+void shallow_copy_assign(assign_t* src, assign_t* dst) {
+    dst->C = src->C;
+
+    dst->is_assigned  = src->is_assigned ;
+    dst->assignment   = src->assignment  ;
+    dst->assign_stack = src->assign_stack;
+    dst->nb_assigned  = src->nb_assigned ;
+}
+void copy_assign(assign_t const* src, assign_t* dst)
+{
+    // don't copy Cs
+
+    for (int idx=0; idx!=src->C; ++idx) {
+      dst->is_assigned[idx] = src->is_assigned[idx];
+      dst->assignment[idx] = src->assignment[idx];
+    }
+    for (int idx=src->C; idx!=dst->C; ++idx) {
+      dst->is_assigned[idx] = 0;
+    }
+    for (int rk=0; rk!=src->C; ++rk) {
+      dst->assign_stack[rk] = src->assign_stack[rk];
+    }
+    dst->nb_assigned=src->nb_assigned;
 }
 void free_assign(assign_t* A)
 {
     free(A->is_assigned );
     free(A->assignment  );
     free(A->assign_stack);
-    //free(assign_type );
     A->nb_assigned=0;
+    A->C=0;
 }
 
 void print_ass(assign_t* A, ClauseList* cl)
@@ -174,6 +200,8 @@ void add_constraint(assign_t* A, ClauseList* cl)
     if (na < 3) { return; }
     int or_chain = add_var(cl);
     deny(cl, or_chain);
+
+    int nb_vars_old = cl->nb_vars;
     for (int rk=0; rk!=na; ++rk) {
         int idx = A->assign_stack[rk];
         int val = A->assignment[idx];
@@ -183,6 +211,17 @@ void add_constraint(assign_t* A, ClauseList* cl)
           or_chain = make_or(cl, idx, or_chain);
         }
     }
+    int nb_vars_diff = cl->nb_vars - nb_vars_old;
+
+    // if ( ! nb_vars_diff ) { continue; }
+    // TODO: expand A to keep up with number of vars
+    if ( cl->nb_vars <= A->C ) { return; }
+
+    assign_t B;
+    init_assign(&B, cl);
+    copy_assign(A, &B);
+    free_assign(A);
+    shallow_copy_assign(&B, A);
 }
 
 int solve(assign_t* A, ClauseList* cl)
