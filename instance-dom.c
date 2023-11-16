@@ -1,7 +1,7 @@
 #include "clause-list.h"
 
 // note: unsat for odd, sat for even
-#define SIDE 6
+#define SIDE 7
 
 void build(ClauseList* cl)
 {

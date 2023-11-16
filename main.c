@@ -8,8 +8,9 @@
 //#include "instance-b-new.c"
 #include "instance-dom.c"
 
+#define CDCL    true
 #define VERBOSE false
-#define V_LIM   10
+#define V_LIM   5
 
 #define GET_TERM(c,vi) (                    \
         (  A->assignment[cl->membership[c][vi]] \
@@ -33,7 +34,7 @@ typedef struct {
 long int steps = 0;
 
 
-void init_assign(assign_t* A, ClauseList const* cl)
+void init_assign(assign_t* A, ClauseList* cl)
 {
     A->is_assigned = malloc(sizeof(int) * cl->nb_vars);
 
@@ -61,7 +62,7 @@ void free_assign(assign_t* A)
     A->nb_assigned=0;
 }
 
-void print_ass(assign_t* A, ClauseList const* cl)
+void print_ass(assign_t* A, ClauseList* cl)
 {
     for (int v=0; v != cl->nb_vars; ++v) {
         // print varname
@@ -94,7 +95,7 @@ void print_cl(ClauseList* cl)
 
 
 // fill while looking for contradictions induced or already present
-int fill_2sat(assign_t* A, ClauseList const* cl)
+int fill_2sat(assign_t* A, ClauseList* cl)
 {
     while ( 1 ) {
         int found_forced_clause = false;
@@ -147,10 +148,10 @@ int fill_2sat(assign_t* A, ClauseList const* cl)
     return true;
 }
 
-int solve(assign_t* A, ClauseList const* cl);
-int solve_wrap(assign_t* A, ClauseList const* cl);
+int solve(assign_t* A, ClauseList* cl);
+int solve_wrap(assign_t* A, ClauseList* cl);
 
-int solve_wrap(assign_t* A, ClauseList const* cl)
+int solve_wrap(assign_t* A, ClauseList* cl)
 {
     // assigns forceds!
     int nb_ass_before = A->nb_assigned;
@@ -159,15 +160,32 @@ int solve_wrap(assign_t* A, ClauseList const* cl)
     rtrn = rtrn && solve(A, cl); // short circuit
 
     // there was sign typo here
-    for (int idx=nb_ass_before; idx!=A->nb_assigned; ++idx) {
-        A->is_assigned[A->assign_stack[idx]] = false;
+    for (int rk=nb_ass_before; rk!=A->nb_assigned; ++rk) {
+        A->is_assigned[A->assign_stack[rk]] = false;
     }
 
     A->nb_assigned = nb_ass_before;
     return rtrn&1;
 }
 
-int solve(assign_t* A, ClauseList const* cl)
+void add_constraint(assign_t* A, ClauseList* cl)
+{
+    int na = A->nb_assigned;
+    if (na < 3) { return; }
+    int or_chain = add_var(cl);
+    deny(cl, or_chain);
+    for (int rk=0; rk!=na; ++rk) {
+        int idx = A->assign_stack[rk];
+        int val = A->assignment[idx];
+        if (val) {
+          or_chain = make_implies(cl, idx, or_chain);
+        } else {
+          or_chain = make_or(cl, idx, or_chain);
+        }
+    }
+}
+
+int solve(assign_t* A, ClauseList* cl)
 {
     if ( A->nb_assigned==cl->nb_vars ) { return true; }
 
@@ -185,30 +203,29 @@ int solve(assign_t* A, ClauseList const* cl)
 
         A->is_assigned[idx] = true;
         A->assignment[idx] = val;
-        //assign_type[idx] = TAE;
-        A->assign_stack[A->nb_assigned] = val;
+        A->assign_stack[A->nb_assigned] = idx; // was typo here
         A->nb_assigned += 1;
 
-        // TODO: CDCL here!
-        //
-        // if chain >= size 3 (w -- x -- y -- z, searched over all
-        // 2*2*2 for xyz)
-        // TODO : CDCL!
-        // like, if A--B--C--D--E--X--Y--Z with c current level
-        // then want (A!=a || B!=b || C!=c || D!=d || E!=e)
-        // equiv
-        // (A!=a || B!=b || P)
-        // ( ! P || C!=c || Q )
-        // ( ! Q || D!=d || E!=e )
-        // TODO: splaying?
-        // TODO: heuristic clauses / var values ?
-        // (hcs: used with 2sat exploration to order which variables and
-        // varvalues to try?)
+        int rtrn = solve_wrap(A, cl);
 
-        int rtrn = false;
-        //if ( ! found_failure && solve_wrap() ) {
-        if ( solve_wrap(A, cl) ) {
-            rtrn = true;
+        if ( CDCL && ! rtrn ) {
+          // found conflict! ... now TODO: do CDCL
+
+          add_constraint(A, cl);
+
+          // if chain >= size 3 (w -- x -- y -- z, searched over all
+          // 2*2*2 for xyz)
+          // TODO : CDCL!
+          // like, if A--B--C--D--E--X--Y--Z with c current level
+          // then want (A!=a || B!=b || C!=c || D!=d || E!=e)
+          // equiv
+          // (A!=a || B!=b || P)
+          // ( ! P || C!=c || Q )
+          // ( ! Q || D!=d || E!=e )
+          // TODO: splaying?
+          // TODO: heuristic clauses / var values ?
+          // (hcs: used with 2sat exploration to order which variables and
+          // varvalues to try?)
         }
 
         A->nb_assigned -= 1;
@@ -237,6 +254,7 @@ int main(char* const argv, int argc)
     printf("solved?  %s\n", (ss?"sat!":"unsat"));
     printf("used %ld branch explorations\n", steps);
     print_ass(&A, &cl);
+    printf("%d clauses on %d variables\n", cl.nb_clauses, cl.nb_vars);
 
     free_assign(&A);
     free_cl(&cl);
