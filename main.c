@@ -8,7 +8,8 @@
 //#include "instance-b-new.c"
 #include "instance-dom.c"
 
-#define VERBOSE true
+#define VERBOSE false
+#define V_LIM   10
 
 ClauseList cl;
 #define GET_TERM(c,vi) (                    \
@@ -34,8 +35,19 @@ long int steps = 0;
 
 void init_assign()
 {
-    assignment  = malloc(sizeof(int) * cl.nb_vars);
     is_assigned = malloc(sizeof(int) * cl.nb_vars);
+
+    for (int c=0; c!=cl.nb_vars; ++c) { // slayed correctness bug here!
+      is_assigned[c]=0;                 // (problem was I forgot to initialize.
+    }                                   // i forgot to initialize because
+                                        // i hadn't fixed in my mind that
+                                        // `is_assigned` takes as indices
+                                        // actual var names (instead of
+                                        // birthday) yet ---unlike
+                                        // `assignment` ---must still be
+                                        // valid even when nb_assigned=0;
+
+    assignment  = malloc(sizeof(int) * cl.nb_vars);
     assign_stack= malloc(sizeof(int) * cl.nb_vars);
     assign_type = malloc(sizeof(int) * cl.nb_vars);
     nb_assigned=0;
@@ -54,12 +66,33 @@ void print_ass()
     for (int v=0; v != cl.nb_vars; ++v) {
         // print varname
         printf("%c", 'a'+(v%26));
-        if (v/26) { printf("%d", 'a'+(v%26)); }
+        if (v/26) { printf("%d", v/26); }
 
         // print predicate
         printf(" = %s\n", (assignment[v]?"true":"false"));
+
+        if (V_LIM<=v) { return; }
     }
 }
+
+void print_cl()
+{
+    for (int c=0; c != cl.nb_clauses; ++c) {
+        for (int vi=0; vi!=3; ++vi) {
+          int v = cl.membership[c][vi];
+          printf(cl.is_negated[c][vi] ? "not " : "");
+          printf("%c", 'a'+(v%26));
+          if (v/26) { printf("%d", v/26); }
+          printf(" ");
+        }
+        printf("\n");
+
+
+        if (V_LIM<=c) { return; }
+    }
+}
+
+
 
 // fill while looking for contradictions induced or already present
 int fill_2sat()
@@ -144,7 +177,7 @@ int solve()
     }
 
     for (int val = 0; val != 2; ++val) {
-        if (VERBOSE) { printf("--%d--%d--\n", idx, val); }
+        if ( idx<10 || VERBOSE) { printf("--%d--%d--\n", idx, val); }
 
         steps += 1;
 
@@ -193,6 +226,7 @@ int main(char* const argv, int argc)
     build(&cl);
     init_assign();
     printf("%d clauses on %d variables\n", cl.nb_clauses, cl.nb_vars);
+    print_cl();
 
     int ss = solve();
     printf("solved?  %s\n", (ss?"sat!":"unsat"));

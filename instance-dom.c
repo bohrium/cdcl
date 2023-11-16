@@ -1,6 +1,6 @@
 #include "clause-list.h"
 
-#define SIDE 4
+#define SIDE 6
 
 /*      a <-> not-b
  *      b <-> not-c
@@ -39,13 +39,18 @@ void build(ClauseList* cl)
         make_or(cl, d2,
                     d3 ))));
 
-        //deny(cl,
-        //make_or(cl, make_and(cl, d0, d1),
-        //make_or(cl, make_and(cl, d0, d2),
-        //make_or(cl, make_and(cl, d0, d3),
-        //make_or(cl, make_and(cl, d1, d2),
-        //make_or(cl, make_and(cl, d1, d3),
-        //            make_and(cl, d2, d3) ))))));
+        //assert(cl, add_var(cl));
+
+        deny(cl, make_and(cl, d0, d1));
+        deny(cl, make_and(cl, d0, d2));
+        deny(cl, make_and(cl, d0, d3));
+        deny(cl, make_and(cl, d1, d2));
+        deny(cl, make_and(cl, d1, d3));
+        deny(cl, make_and(cl, d2, d3));
+
+        //assert(cl, add_var(cl));
+        //assert(cl, add_var(cl));
+        //assert(cl, add_var(cl));
       }
     }
 

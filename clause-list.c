@@ -17,7 +17,9 @@ void expand(ClauseList* cl, int new_cap)
 {
     ClauseList old;
     old.membership = cl->membership;
-    old.is_negated = cl->membership;
+    old.is_negated = cl->is_negated; // slayed double free bug here!
+                                     // (problem was I said m=m, i=m
+                                     // instead of m=m, i=i)
 
     cl->membership = malloc(sizeof(int[3]) * new_cap);
     cl->is_negated = malloc(sizeof(int[3]) * new_cap);
