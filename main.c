@@ -11,34 +11,34 @@
 #define VERBOSE false
 #define V_LIM   10
 
-ClauseList cl;
 #define GET_TERM(c,vi) (                    \
-        (  assignment[cl.membership[c][vi]] \
-         ^ cl.is_negated[c][vi]             \
+        (  A->assignment[cl->membership[c][vi]] \
+         ^ cl->is_negated[c][vi]             \
         )                                   \
         &1)
 
-int* assignment;
-int* is_assigned;
+//#define TAE 0
+//#define TSF 1
+//int* assign_type;  // vi -> (TAE trial&error, TSF 2sat fill)
+// int issat[nb_clauses];
 
-#define TAE 0
-#define TSF 1
-int* assign_type;  // vi -> (TAE trial&error, TSF 2sat fill)
-
-int* assign_stack; // rank to variable name
-int nb_assigned = 0;
+typedef struct {
+    int* is_assigned;   // varname to bool
+    int* assignment;    // varname to bool, defined when is_assigned
+    int* assign_stack;  // search rootiness to varname
+    int nb_assigned;
+} assign_t;
 
 // `steps` measures branch explorations
 long int steps = 0;
 
-//int issat[nb_clauses];
 
-void init_assign()
+void init_assign(assign_t* A, ClauseList const* cl)
 {
-    is_assigned = malloc(sizeof(int) * cl.nb_vars);
+    A->is_assigned = malloc(sizeof(int) * cl->nb_vars);
 
-    for (int c=0; c!=cl.nb_vars; ++c) { // slayed correctness bug here!
-      is_assigned[c]=0;                 // (problem was I forgot to initialize.
+    for (int c=0; c!=cl->nb_vars; ++c) { // slayed correctness bug here!
+      A->is_assigned[c]=0;              // (problem was I forgot to initialize.
     }                                   // i forgot to initialize because
                                         // i hadn't fixed in my mind that
                                         // `is_assigned` takes as indices
@@ -47,46 +47,45 @@ void init_assign()
                                         // `assignment` ---must still be
                                         // valid even when nb_assigned=0;
 
-    assignment  = malloc(sizeof(int) * cl.nb_vars);
-    assign_stack= malloc(sizeof(int) * cl.nb_vars);
-    assign_type = malloc(sizeof(int) * cl.nb_vars);
-    nb_assigned=0;
+    A->assignment  = malloc(sizeof(int) * cl->nb_vars);
+    A->assign_stack= malloc(sizeof(int) * cl->nb_vars);
+    //assign_type = malloc(sizeof(int) * cl.nb_vars);
+    A->nb_assigned=0;
 }
-void free_assign()
+void free_assign(assign_t* A)
 {
-    free(assignment  );
-    free(is_assigned );
-    free(assign_stack);
-    free(assign_type );
-    nb_assigned=0;
+    free(A->is_assigned );
+    free(A->assignment  );
+    free(A->assign_stack);
+    //free(assign_type );
+    A->nb_assigned=0;
 }
 
-void print_ass()
+void print_ass(assign_t* A, ClauseList const* cl)
 {
-    for (int v=0; v != cl.nb_vars; ++v) {
+    for (int v=0; v != cl->nb_vars; ++v) {
         // print varname
         printf("%c", 'a'+(v%26));
         if (v/26) { printf("%d", v/26); }
 
         // print predicate
-        printf(" = %s\n", (assignment[v]?"true":"false"));
+        printf(" = %s\n", (A->assignment[v]?"true":"false"));
 
         if (V_LIM<=v) { return; }
     }
 }
 
-void print_cl()
+void print_cl(ClauseList* cl)
 {
-    for (int c=0; c != cl.nb_clauses; ++c) {
+    for (int c=0; c != cl->nb_clauses; ++c) {
         for (int vi=0; vi!=3; ++vi) {
-          int v = cl.membership[c][vi];
-          printf(cl.is_negated[c][vi] ? "not " : "");
+          int v = cl->membership[c][vi];
+          printf(cl->is_negated[c][vi] ? "not " : "");
           printf("%c", 'a'+(v%26));
           if (v/26) { printf("%d", v/26); }
           printf(" ");
         }
         printf("\n");
-
 
         if (V_LIM<=c) { return; }
     }
@@ -95,7 +94,7 @@ void print_cl()
 
 
 // fill while looking for contradictions induced or already present
-int fill_2sat()
+int fill_2sat(assign_t* A, ClauseList const* cl)
 {
     while ( 1 ) {
         int found_forced_clause = false;
@@ -103,77 +102,80 @@ int fill_2sat()
         int val;
         int idx;
         int c;
-        for (c=0; c!=cl.nb_clauses; ++c) {
+        for (c=0; c!=cl->nb_clauses; ++c) {
             int nb_false = 0;
             int nb_true  = 0;
             int which_unassigned=-1;
             int found_forced_var = false;
             for (int vi=0; vi!=3; ++vi) {
-                int ass = is_assigned[cl.membership[c][vi]];
+                int ass = A->is_assigned[cl->membership[c][vi]];
                 nb_false += (ass && ! GET_TERM(c,vi)) ? 1 : 0;
                 nb_true  += (ass && GET_TERM(c,vi)) ? 1 : 0;
                 if ( ! ass ) {
                     if ( which_unassigned==-1 ) { which_unassigned = vi; found_forced_var = true; }
-                    else if ( cl.membership[c][vi]!=cl.membership[c][which_unassigned] ) { found_forced_var = false; }
+                    else if ( cl->membership[c][vi]!=cl->membership[c][which_unassigned] ) { found_forced_var = false; }
                 }
             }
             if ( nb_false == 3 ) { return false; } // found contradiction
             found_forced_var = found_forced_var && (! nb_true);
 
-            val = cl.is_negated[c][which_unassigned] ? 0 : 1; /* TODO: assumes (p or not-p) does not appear! */
-            idx = cl.membership[c][which_unassigned];
+            val = cl->is_negated[c][which_unassigned] ? 0 : 1; /* TODO: assumes (p or not-p) does not appear! */
+            idx = cl->membership[c][which_unassigned];
             if ( found_forced_var ) { found_forced_clause = true; break; }
         }
         //
         // ----
-        if ( nb_assigned==cl.nb_vars ) { break; } // exit here rather than at loop body boundary because still need false=3 check
+        if ( A->nb_assigned==cl->nb_vars ) { break; } // exit here rather than at loop body boundary because still need false=3 check
         if ( ! found_forced_clause ) { break; }
         // ----
         //
-        if ( is_assigned[idx] ) {
-            if ( assignment[idx] != val ) {
+        if ( A->is_assigned[idx] ) {
+            if ( A->assignment[idx] != val ) {
                 return false; // CONTRADICTION!
             } else {
                 // TODO: UNEXPECTED
             }
         }
 
-        assignment[idx] = val;
         if (VERBOSE) { printf(" ? --%d--%d--\n", idx, val); }
-        assign_type[idx] = TSF;
-        is_assigned[idx] = true;
-        assign_stack[nb_assigned] = idx;
-        nb_assigned += 1;
-
+        A->is_assigned[idx] = true;
+        A->assignment[idx] = val;
+        //assign_type[idx] = TSF;
+        A->assign_stack[A->nb_assigned] = idx;
+        A->nb_assigned += 1;
     }
     return true;
 }
 
-int solve();
-int solve_wrap();
+int solve(assign_t* A, ClauseList const* cl);
+int solve_wrap(assign_t* A, ClauseList const* cl);
 
-int solve_wrap()
+int solve_wrap(assign_t* A, ClauseList const* cl)
 {
     // assigns forceds!
-    int nb_ass_before = nb_assigned;
-    int rtrn = fill_2sat();
-    rtrn = rtrn && solve(); // short circuit
-    for (int idx=nb_ass_before; idx!=nb_assigned; ++idx) {
-        is_assigned[assign_stack[idx]] = false;
+    int nb_ass_before = A->nb_assigned;
+    int rtrn = fill_2sat(A, cl);
+
+    rtrn = rtrn && solve(A, cl); // short circuit
+
+    // there was sign typo here
+    for (int idx=nb_ass_before; idx!=A->nb_assigned; ++idx) {
+        A->is_assigned[A->assign_stack[idx]] = false;
     }
-    nb_assigned = nb_ass_before;
+
+    A->nb_assigned = nb_ass_before;
     return rtrn&1;
 }
 
-int solve()
+int solve(assign_t* A, ClauseList const* cl)
 {
-    if ( nb_assigned==cl.nb_vars ) { return true; }
+    if ( A->nb_assigned==cl->nb_vars ) { return true; }
 
         // TODO: move ordering here!
     int idx;
     for (idx=0; ; ++idx) {
-        if ( ! is_assigned[idx] ) { break; }
-        if (idx==cl.nb_vars) { /* FIXME */ }
+        if ( ! A->is_assigned[idx] ) { break; }
+        if (idx==cl->nb_vars) { /* FIXME */ }
     }
 
     for (int val = 0; val != 2; ++val) {
@@ -181,11 +183,11 @@ int solve()
 
         steps += 1;
 
-        assignment[idx] = val;
-        assign_type[idx] = TAE;
-        is_assigned[idx] = true;
-        assign_stack[nb_assigned] = val;
-        nb_assigned += 1;
+        A->is_assigned[idx] = true;
+        A->assignment[idx] = val;
+        //assign_type[idx] = TAE;
+        A->assign_stack[A->nb_assigned] = val;
+        A->nb_assigned += 1;
 
         // TODO: CDCL here!
         //
@@ -205,12 +207,12 @@ int solve()
 
         int rtrn = false;
         //if ( ! found_failure && solve_wrap() ) {
-        if ( solve_wrap() ) {
+        if ( solve_wrap(A, cl) ) {
             rtrn = true;
         }
 
-        nb_assigned -= 1;
-        is_assigned[idx] = false;
+        A->nb_assigned -= 1;
+        A->is_assigned[idx] = false;
         if (rtrn) { return true; }
 
     }
@@ -221,19 +223,22 @@ int solve()
 
 int main(char* const argv, int argc)
 {
+    ClauseList cl;
+    assign_t A;
+
     printf("hi\n");
     init_cl(&cl);
     build(&cl);
-    init_assign();
+    init_assign(&A, &cl);
     printf("%d clauses on %d variables\n", cl.nb_clauses, cl.nb_vars);
-    print_cl();
+    print_cl(&cl);
 
-    int ss = solve();
+    int ss = solve(&A, &cl);
     printf("solved?  %s\n", (ss?"sat!":"unsat"));
     printf("used %ld branch explorations\n", steps);
-    print_ass();
+    print_ass(&A, &cl);
 
-    free_assign();
+    free_assign(&A);
     free_cl(&cl);
     printf("bye\n");
     return 0;
