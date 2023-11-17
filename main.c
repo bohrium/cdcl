@@ -6,8 +6,8 @@
 #include "clause-list.h"
 
 //#include "instance-b-new.c"
-//#include "instance-dom.c"
-#include "instance-add.c"
+#include "instance-dom.c"
+//#include "instance-add.c"
 
 #define CDCL    true
 #define VERBOSE true
@@ -170,6 +170,7 @@ int fill_2sat(assign_t* A, ClauseList* cl)
         A->assignment[idx] = val;
         //assign_type[idx] = TSF;
         A->assign_stack[A->nb_assigned] = idx;
+      // TODO: for cdcl and non-cdcl efficiency, don't add forceds to ass stack!
         A->nb_assigned += 1;
     }
     return true;
@@ -190,6 +191,7 @@ int solve_wrap(assign_t* A, ClauseList* cl)
     for (int rk=nb_ass_before; rk!=A->nb_assigned; ++rk) {
         A->is_assigned[A->assign_stack[rk]] = false;
     }
+    // TODO: for cdcl and non-cdcl efficiency, don't add forceds to ass stack!
 
     A->nb_assigned = nb_ass_before;
     return rtrn&1;
@@ -200,25 +202,29 @@ void add_constraint(assign_t* A, ClauseList* cl)
     int na = A->nb_assigned;
     // TODO: try and name different conditions for when add constraint
     if (na < 3) { return; }
+
     int or_chain = add_var(cl);
     deny(cl, or_chain);
 
-    int nb_vars_old = cl->nb_vars;
+    //int nb_vars_old = cl->nb_vars;
     for (int rk=0; rk!=na; ++rk) {
+        // TODO: don't include forced variables here!
         int idx = A->assign_stack[rk];
         int val = A->assignment[idx];
-        if (val) {
-          or_chain = make_implies(cl, idx, or_chain);
-        } else {
-          or_chain = make_or(cl, idx, or_chain);
-        }
+        // TODO: clean up low level construction
+        if (val) { or_chain = make_implies(cl, idx, or_chain); }
+        else     { or_chain = make_or     (cl, idx, or_chain); }
     }
-    int nb_vars_diff = cl->nb_vars - nb_vars_old;
+    // TODO: assert or_chain?!
+    // (***) TODO: mystery of why commenting the following line seems not to
+    // drastically slow down program --- yet commenting out ((***) below) does
+    //assert(cl, or_chain);
+
+    //int nb_vars_diff = cl->nb_vars - nb_vars_old;
 
     // if ( ! nb_vars_diff ) { continue; }
-    // TODO: expand A to keep up with number of vars
     if ( cl->nb_vars <= A->C ) { return; }
-
+    // expands A to keep up with number of vars:
     assign_t B;
     init_assign(&B, cl);
     copy_assign(A, &B);
@@ -237,8 +243,9 @@ int solve(assign_t* A, ClauseList* cl)
         if (idx==cl->nb_vars) { /* FIXME */ }
     }
 
+    // TODO: val ordering
     for (int val = 0; val != 2; ++val) {
-        if ( idx<10 || VERBOSE) { printf("--%d--%d--\n", idx, val); }
+        if ( idx<5 || VERBOSE) { printf("--%d--%d--\n", idx, val); }
 
         steps += 1;
 
@@ -252,17 +259,11 @@ int solve(assign_t* A, ClauseList* cl)
         if ( CDCL && ! rtrn ) {
           // found conflict! ... now TODO: do CDCL
 
+          // (***) TODO: mystery of why commenting out (***) above seems not to
+          // drastically slow down program --- yet, as expected, commenting out
+          // the line below DOES:
           add_constraint(A, cl);
 
-          // if chain >= size 3 (w -- x -- y -- z, searched over all
-          // 2*2*2 for xyz)
-          // TODO : CDCL!
-          // like, if A--B--C--D--E--X--Y--Z with c current level
-          // then want (A!=a || B!=b || C!=c || D!=d || E!=e)
-          // equiv
-          // (A!=a || B!=b || P)
-          // ( ! P || C!=c || Q )
-          // ( ! Q || D!=d || E!=e )
           // TODO: splaying?
           // TODO: heuristic clauses / var values ?
           // (hcs: used with 2sat exploration to order which variables and
