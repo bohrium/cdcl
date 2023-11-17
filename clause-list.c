@@ -1,4 +1,5 @@
 #include "stdlib.h"
+#include "stdio.h"
 #include "clause-list.h"
 
 void init_cl(ClauseList* cl /*, int cap */ )
@@ -145,7 +146,7 @@ int make_implies(ClauseList* cl, int va, int vb)
 }
 
 
-// todo: log depth adder?
+// TODO: log depth adder?
 /* if car_in==-1, then interpret as "no carry in bit" */
 void ensure_add(ClauseList* cl, int len,
                 int car_in, int va, int vb, int vs, int car_out)
@@ -159,16 +160,18 @@ void ensure_add(ClauseList* cl, int len,
         c = car_in;
     }
 
-    for (int b=0; b!=len; ++b)
-    {
-        s = make_or(cl, make_and(cl, va+b, vb+b),
-            make_or(cl, make_and(cl, vb+b,  c  ),
-                        make_and(cl,  c  , va+b) )); // majority
+    for (int b=0; b!=len; ++b) {
+        // fixed dumb bug where accidentally computed (s,c) as (maj, xor) instead of as (xor, maj)
+        s = make_xor(cl, va+b,
+            make_xor(cl, vb+b, c));
+        printf("- s %d\n", s);
 
         wire(cl, vs+b, s);
 
-        c = make_xor(cl, va+b,
-            make_xor(cl, vb+b, c));
+        c = make_or(cl, make_and(cl, va+b, vb+b),
+            make_or(cl, make_and(cl, vb+b,  c  ),
+                        make_and(cl,  c  , va+b) )); // majority
+        printf("- c %d\n", c);
     }
 
     if (car_out!=-1) {

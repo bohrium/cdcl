@@ -6,11 +6,12 @@
 #include "clause-list.h"
 
 //#include "instance-b-new.c"
-#include "instance-dom.c"
+//#include "instance-dom.c"
+#include "instance-add.c"
 
 #define CDCL    true
-#define VERBOSE false
-#define V_LIM   5
+#define VERBOSE true
+#define V_LIM   12
 
 #define GET_TERM(c,vi) (                    \
         (  A->assignment[cl->membership[c][vi]] \
@@ -38,7 +39,7 @@ long int steps = 0;
 
 void init_assign(assign_t* A, ClauseList const* cl)
 {
-    A->C = 1.1 * cl->nb_vars + 1;
+    A->C = 1.2 * cl->nb_vars + 1;
     A->is_assigned = malloc(sizeof(int) * A->C);
 
     for (int c=0; c!=cl->nb_vars; ++c) { // slayed correctness bug here!
@@ -197,6 +198,7 @@ int solve_wrap(assign_t* A, ClauseList* cl)
 void add_constraint(assign_t* A, ClauseList* cl)
 {
     int na = A->nb_assigned;
+    // TODO: try and name different conditions for when add constraint
     if (na < 3) { return; }
     int or_chain = add_var(cl);
     deny(cl, or_chain);
